@@ -1,0 +1,10 @@
+node_modules
+.pnpm-store
+.turbo
+dist
+build
+tmp
+*.log
+.env
+.env.local
+.env.*.local

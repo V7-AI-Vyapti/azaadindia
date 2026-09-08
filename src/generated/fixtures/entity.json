@@ -1,0 +1,18 @@
+[
+    {
+        "entity_name": "student",
+        "description": "student",
+        "fields": [
+            {
+                "field_name": "student_id",
+                "field_data_type": "AutoPK",
+                "attributes": {}
+            },
+            {
+                "field_name": "student",
+                "field_data_type": "CharacterString",
+                "attributes": {}
+            }
+        ]
+    }
+]
