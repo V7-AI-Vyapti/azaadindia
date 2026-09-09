@@ -20,7 +20,9 @@ for PORT in $(seq 9000 11000); do
   if [[ "$SKIP" -eq 1 ]]; then continue; fi
 
   # Check if port is in use on host
-  if ss -tlnp | grep -q ":${PORT} "; then continue; fi
+  if ss -H -ltn "( sport = :${PORT} )" 2>/dev/null | grep -q .; then
+    continue
+  fi
 
   if [[ -n "$SLUG" && -n "$SERVICE" ]]; then
     echo "[port] ${SLUG}.${SERVICE} → $PORT" >&2
