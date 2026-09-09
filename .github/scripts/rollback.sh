@@ -50,6 +50,13 @@ echo "[rollback] Finding free port..." >&2
 NEW_PORT=$("$SCRIPTS/find-port.sh" "$SLUG" "platform-green")
 echo "[rollback] Assigned rollback port: $NEW_PORT" >&2
 
+# ── Sanitize + validate port ────────────────────────────────────────────
+NEW_PORT="$(echo "$NEW_PORT" | grep -oE '[0-9]+' | tail -n1)"
+if ! [[ "$NEW_PORT" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: NEW_PORT is not a valid port number" >&2
+  exit 1
+fi
+
 # ── 4. Run rollback image as GREEN ────────────────────────────────────────
 COMPOSE_NETWORK="${SLUG}_default"
 docker network create "$COMPOSE_NETWORK" 2>/dev/null || true
