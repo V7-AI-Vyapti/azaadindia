@@ -10,6 +10,12 @@
 #   6. Shifts Nginx (SSL 443) traffic to the green container port
 #   7. Stops and deletes the old blue container (${SLUG}-platform-blue)
 #   8. Renames green container to blue (${SLUG}-platform-blue) and prunes old images
+#
+# CHANGELOG:
+#   2026-09-09 — Added lines 60-64: sanitize + validate NEW_PORT before it
+#                is written into the Nginx proxy_pass block. Same fix as
+#                switch-traffic.sh — prevents a malformed port value from
+#                corrupting the Nginx config and breaking `nginx -t`.
 set -euo pipefail
 
 SLUG="${1:?slug required}"
@@ -50,12 +56,13 @@ echo "[rollback] Finding free port..." >&2
 NEW_PORT=$("$SCRIPTS/find-port.sh" "$SLUG" "platform-green")
 echo "[rollback] Assigned rollback port: $NEW_PORT" >&2
 
-# ── Sanitize + validate port ────────────────────────────────────────────
+# ── ADDED 2026-09-09: Sanitize + validate port ──────────────────────────
 NEW_PORT="$(echo "$NEW_PORT" | grep -oE '[0-9]+' | tail -n1)"
 if ! [[ "$NEW_PORT" =~ ^[0-9]+$ ]]; then
   echo "ERROR: NEW_PORT is not a valid port number" >&2
   exit 1
 fi
+# ── END ADDED 2026-09-09 ────────────────────────────────────────────────
 
 # ── 4. Run rollback image as GREEN ────────────────────────────────────────
 COMPOSE_NETWORK="${SLUG}_default"
