@@ -1,0 +1,50 @@
+name: Teardown Stack (Remove All Services)
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_slug:
+        description: Project slug to tear down
+        required: true
+        type: string
+      mode:
+        description: "down = stop/remove containers & network, keep data. remove_completely = wipe everything (data, nginx vhost, repo)"
+        required: true
+        type: choice
+        default: down
+        options:
+          - down
+          - remove_completely
+
+jobs:
+  teardown:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Copy scripts to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ vars.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ vars.SSH_PORT }}
+          source: ".github/scripts/*"
+          target: "/tmp/v7ai-scripts"
+          strip_components: 2
+
+      - name: Run Teardown
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ vars.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ vars.SSH_PORT }}
+          script: |
+            set -e
+            SCRIPTS="/tmp/v7ai-scripts"
+            chmod +x "$SCRIPTS"/*.sh
+
+            "$SCRIPTS/teardown.sh" "${{ inputs.project_slug }}" "${{ inputs.mode }}"
