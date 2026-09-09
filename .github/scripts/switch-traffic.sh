@@ -31,6 +31,13 @@ if [ -z "$TARGET_PORT" ]; then
   echo "[switch-traffic] Auto-detected green port ${TARGET_PORT}" >&2
 fi
 
+# ── Sanitize + validate target port ────────────────────────────────────
+TARGET_PORT="$(echo "$TARGET_PORT" | grep -oE '[0-9]+' | tail -n1)"
+if ! [[ "$TARGET_PORT" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: TARGET_PORT is not a valid port number" >&2
+  exit 1
+fi
+
 echo "[switch-traffic] Switching live traffic for ${DOMAIN} → 127.0.0.1:${TARGET_PORT}..." >&2
 
 sudo tee "$CONF" > /dev/null << NGINX
