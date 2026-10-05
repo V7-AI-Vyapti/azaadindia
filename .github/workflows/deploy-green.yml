@@ -16,6 +16,13 @@ on:
         required: false
         default: main
         type: string
+      environment:
+        description: Environment to deploy
+        required: true
+        type: choice
+        options:
+          - Trooper
+          - macmini
 
 jobs:
   build:
@@ -73,6 +80,7 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
 
     steps:
       - name: Checkout

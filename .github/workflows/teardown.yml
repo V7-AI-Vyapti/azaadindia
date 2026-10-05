@@ -15,14 +15,34 @@ on:
         options:
           - down
           - remove_completely
+      environment:
+        description: Environment to deploy
+        required: true
+        type: choice
+        options:
+          - Trooper
+          - macmini
 
 jobs:
+  # ── App machine: containers, infra stack, volumes, deploy dir ────────────
   teardown:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      upstream: ${{ steps.target.outputs.upstream }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve upstream host
+        id: target
+        env:
+          RESOLVE_PORT: "false"
+          UPSTREAM_HOST: ${{ vars.UPSTREAM_HOST }}
+          MACHINE: ${{ inputs.environment }}
+          NGINX_MACHINE: ${{ vars.NGINX_MACHINE || 'Trooper' }}
+        run: bash .github/ci/resolve-target.sh
 
       - name: Copy scripts to server
         uses: appleboy/scp-action@v0.1.7
@@ -35,7 +55,7 @@ jobs:
           target: "/tmp/v7ai-scripts"
           strip_components: 2
 
-      - name: Run Teardown
+      - name: Run Teardown (app machine)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VM_HOST }}
@@ -48,3 +68,38 @@ jobs:
             chmod +x "$SCRIPTS"/*.sh
 
             "$SCRIPTS/teardown.sh" "${{ inputs.project_slug }}" "${{ inputs.mode }}"
+
+  # ── NGINX machine: remove the vhost (uses the nginx environment's own SSH creds) ─────
+  nginx:
+    needs: teardown
+    runs-on: ubuntu-latest
+    environment: ${{ vars.NGINX_MACHINE || 'Trooper' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Copy nginx script to nginx machine
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ vars.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ vars.SSH_PORT }}
+          source: ".github/scripts/remove-nginx.sh"
+          target: "/tmp/v7ai-nginx"
+          strip_components: 2
+
+      - name: Remove nginx vhost
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ vars.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ vars.SSH_PORT }}
+          script: |
+            set -e
+            chmod +x /tmp/v7ai-nginx/remove-nginx.sh
+            /tmp/v7ai-nginx/remove-nginx.sh \
+              "${{ inputs.project_slug }}" \
+              "${{ needs.teardown.outputs.upstream }}"

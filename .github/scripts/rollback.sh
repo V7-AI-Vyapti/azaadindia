@@ -7,15 +7,15 @@
 #   3. Finds a free host port in 5000-7000 via find-port.sh
 #   4. Runs the rollback image as green (${SLUG}-platform-green)
 #   5. Runs health check on green container port
-#   6. Shifts Nginx (SSL 443) traffic to the green container port
-#   7. Stops and deletes the old blue container (${SLUG}-platform-blue)
-#   8. Renames green container to blue (${SLUG}-platform-blue) and prunes old images
+#   6. Prints the green port on stdout
+#
+# It does NOT touch nginx or the blue containers. The workflow then:
+#   - runs setup-nginx.sh on the NGINX machine (separate job)
+#   - runs promote-green.sh back on this machine
 #
 # CHANGELOG:
-#   2026-09-09 — Added lines 60-64: sanitize + validate NEW_PORT before it
-#                is written into the Nginx proxy_pass block. Same fix as
-#                switch-traffic.sh — prevents a malformed port value from
-#                corrupting the Nginx config and breaking `nginx -t`.
+#   2026-09-09 — Sanitize + validate NEW_PORT right after find-port.sh, so a
+#                malformed port value can never reach the Nginx config.
 set -euo pipefail
 
 SLUG="${1:?slug required}"
@@ -26,8 +26,6 @@ SCRIPTS="${4:-$(dirname "$0")}"
 PLATFORM_IMAGE="ghcr.io/${REPO}/${SLUG}-platform:${IMAGE_TAG}"
 WORKER_IMAGE="ghcr.io/${REPO}/${SLUG}-background-worker:${IMAGE_TAG}"
 
-PLATFORM_BLUE="${SLUG}-platform-blue"
-WORKER_BLUE="${SLUG}-background-worker-blue"
 PLATFORM_GREEN="${SLUG}-platform-green"
 WORKER_GREEN="${SLUG}-background-worker-green"
 
@@ -35,11 +33,6 @@ DEPLOY_DIR="/home/deploy/vyapti/generated-projects/${SLUG}"
 ENV_FILE="${DEPLOY_DIR}/.env"
 ENV_PORTS="${DEPLOY_DIR}/.env.ports"
 HEALTH_PATH="${HEALTH_PATH:-/api/v1/vulcan/health-check}"
-
-DOMAIN="${SLUG}.v7ai.org"
-CONF="/etc/nginx/sites-available/${DOMAIN}"
-
-
 
 # ── 2. Pull rollback images from GHCR ─────────────────────────────────────
 echo "[rollback] Pulling rollback images for tag ${IMAGE_TAG}..." >&2
@@ -108,52 +101,12 @@ for i in $(seq 1 "$RETRIES"); do
   sleep "$INTERVAL"
 done
 
-# ── 6. Shift Nginx (SSL 443) traffic to green port ───────────────────────
-echo "[rollback] Switching live traffic for ${DOMAIN} → 127.0.0.1:${NEW_PORT}..." >&2
-
-sudo tee "$CONF" > /dev/null << NGINX
-server {
-    listen 443 ssl http2;
-    server_name ${DOMAIN};
-    ssl_certificate     /etc/letsencrypt/live/v7ai.org/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/v7ai.org/privkey.pem;
-    location / {
-        proxy_pass         http://127.0.0.1:${NEW_PORT};
-        proxy_set_header   Host              \$host;
-        proxy_set_header   X-Real-IP         \$remote_addr;
-        proxy_set_header   X-Forwarded-For   \$proxy_add_x_forwarded_for;
-        proxy_set_header   X-Forwarded-Proto \$scheme;
-        proxy_http_version 1.1;
-        proxy_set_header   Connection        "";
-        proxy_read_timeout 60s;
-    }
-}
-NGINX
-
-sudo ln -sf "$CONF" "/etc/nginx/sites-enabled/${DOMAIN}"
-
-sudo nginx -t
-sudo systemctl reload nginx
-
-# ── 7. Stop & delete old BLUE container ───────────────────────────────────
-echo "[rollback] Stopping and deleting old blue container..." >&2
-docker rm -f "$PLATFORM_BLUE" "$WORKER_BLUE" 2>/dev/null || true
-
-# ── 8. Rename GREEN container to BLUE ─────────────────────────────────────
-echo "[rollback] Promoting green container to blue..." >&2
-docker rm -f "$PLATFORM_BLUE" "$WORKER_BLUE" 2>/dev/null || true
-docker rename "$PLATFORM_GREEN" "$PLATFORM_BLUE" 2>/dev/null || true
-docker rename "$WORKER_GREEN"   "$WORKER_BLUE"   2>/dev/null || true
-
-# Prune old Docker images
-echo "[rollback] Pruning old Docker images..." >&2
-docker image prune -af >/dev/null 2>&1 || true
-
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
-echo "  Rollback & Promotion Complete!" >&2
+echo "  Rollback container is up as GREEN" >&2
 echo "  Project    : $SLUG" >&2
 echo "  Target Tag : $IMAGE_TAG" >&2
-echo "  Domain     : https://${DOMAIN}" >&2
-echo "  Active Port: 127.0.0.1:${NEW_PORT}" >&2
-echo "  Status     : Live (Rolled back to blue successfully)" >&2
+echo "  Green Port : $NEW_PORT" >&2
+echo "  Status     : Healthy (live traffic still on blue until nginx is switched)" >&2
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
+
+echo "$NEW_PORT"

@@ -96,7 +96,7 @@ echo "  Project   : $SLUG" >&2
 echo "  Image Tag : $IMAGE_TAG" >&2
 echo "  Green Port: $NEW_PORT" >&2
 echo "  Status    : Healthy (Live traffic is still on previous port)" >&2
-echo "  Next Step : Run switch-traffic.sh $SLUG $NEW_PORT to promote" >&2
+echo "  Next Step : Run the \"Switch Traffic (Promote)\" workflow for $SLUG on this machine" >&2
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" >&2
 
 # Output the green port on stdout

@@ -12,10 +12,21 @@ on:
         required: false
         default: ""
         type: string
+      environment:
+        description: Environment to deploy
+        required: true
+        type: choice
+        options:
+          - Trooper
+          - macmini
 
 jobs:
   switch:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    outputs:
+      port: ${{ steps.target.outputs.port }}
+      upstream: ${{ steps.target.outputs.upstream }}
 
     steps:
       - name: Checkout
@@ -32,7 +43,43 @@ jobs:
           target: "/tmp/v7ai-scripts"
           strip_components: 2
 
-      - name: Switch Nginx Traffic
+      # ── Runner: which IP:port must nginx proxy to? ───────────────────────
+      - name: Resolve green port & upstream host
+        id: target
+        env:
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_HOST: ${{ secrets.VM_HOST }}
+          SSH_USER: ${{ vars.SSH_USER }}
+          SSH_PORT: ${{ vars.SSH_PORT }}
+          PROJECT_SLUG: ${{ inputs.project_slug }}
+          TARGET_PORT: ${{ inputs.target_port }}
+          UPSTREAM_HOST: ${{ vars.UPSTREAM_HOST }}
+          MACHINE: ${{ inputs.environment }}
+          NGINX_MACHINE: ${{ vars.NGINX_MACHINE || 'Trooper' }}
+        run: bash .github/ci/resolve-target.sh
+
+  # ── NGINX machine: takes the nginx environment's own SSH creds from its environment ──
+  nginx:
+    needs: switch
+    runs-on: ubuntu-latest
+    environment: ${{ vars.NGINX_MACHINE || 'Trooper' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Copy nginx script to nginx machine
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ vars.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ vars.SSH_PORT }}
+          source: ".github/scripts/setup-nginx.sh"
+          target: "/tmp/v7ai-nginx"
+          strip_components: 2
+
+      - name: Switch nginx traffic
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VM_HOST }}
@@ -41,14 +88,27 @@ jobs:
           port: ${{ vars.SSH_PORT }}
           script: |
             set -e
-            SCRIPTS="/tmp/v7ai-scripts"
-            chmod +x "$SCRIPTS"/*.sh
+            chmod +x /tmp/v7ai-nginx/setup-nginx.sh
+            /tmp/v7ai-nginx/setup-nginx.sh \
+              "${{ inputs.project_slug }}" \
+              "${{ needs.switch.outputs.port }}" \
+              "${{ needs.switch.outputs.upstream }}"
 
-            PROJECT_SLUG="${{ inputs.project_slug }}"
-            TARGET_PORT="${{ inputs.target_port }}"
+  # ── App machine again: old blue out, green becomes blue ──────────────────
+  promote:
+    needs: [switch, nginx]
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
 
-            if [ -n "$TARGET_PORT" ]; then
-              "$SCRIPTS/switch-traffic.sh" "$PROJECT_SLUG" "$TARGET_PORT"
-            else
-              "$SCRIPTS/switch-traffic.sh" "$PROJECT_SLUG"
-            fi
+    steps:
+      - name: Promote green to blue
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ vars.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ vars.SSH_PORT }}
+          script: |
+            set -e
+            chmod +x /tmp/v7ai-scripts/*.sh
+            /tmp/v7ai-scripts/promote-green.sh "${{ inputs.project_slug }}"
