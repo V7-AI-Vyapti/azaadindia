@@ -26,7 +26,9 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # Build on a runner with the same CPU type as the target machine, so the
+    # image runs natively there:  macmini = Apple Silicon (arm64), Trooper = Intel/AMD (x64)
+    runs-on: ${{ inputs.environment == 'macmini' && 'ubuntu-24.04-arm' || 'ubuntu-latest' }}
 
     outputs:
       image_tag: ${{ steps.vars.outputs.TAG }}
@@ -60,8 +62,8 @@ jobs:
       - name: Build & Push platform image
         run: |
           docker buildx build \
-            --cache-from=type=gha,scope=platform \
-            --cache-to=type=gha,mode=max,scope=platform \
+            --cache-from=type=gha,scope=platform-${{ runner.arch }} \
+            --cache-to=type=gha,mode=max,scope=platform-${{ runner.arch }} \
             -t ghcr.io/${{ steps.repo.outputs.REPO }}/${{ inputs.project_slug }}-platform:${{ steps.vars.outputs.TAG }} \
             -t ghcr.io/${{ steps.repo.outputs.REPO }}/${{ inputs.project_slug }}-platform:latest \
             --push \
@@ -70,8 +72,8 @@ jobs:
       - name: Build & Push background-worker image
         run: |
           docker buildx build \
-            --cache-from=type=gha,scope=worker \
-            --cache-to=type=gha,mode=max,scope=worker \
+            --cache-from=type=gha,scope=worker-${{ runner.arch }} \
+            --cache-to=type=gha,mode=max,scope=worker-${{ runner.arch }} \
             -t ghcr.io/${{ steps.repo.outputs.REPO }}/${{ inputs.project_slug }}-background-worker:${{ steps.vars.outputs.TAG }} \
             -t ghcr.io/${{ steps.repo.outputs.REPO }}/${{ inputs.project_slug }}-background-worker:latest \
             --push \
