@@ -103,6 +103,7 @@ jobs:
       - name: Deploy Infrastructure & Green Container (app machine)
         uses: appleboy/ssh-action@v1.0.3
         env:
+          DEPLOY_BASE_DIR: ${{ vars.DEPLOY_BASE_DIR }}
           APP_JWT_PRIVATE_KEY: ${{ secrets.APP_JWT_PRIVATE_KEY }}
           APP_JWT_PUBLIC_KEY: ${{ secrets.APP_JWT_PUBLIC_KEY }}
           APP_BOOTSTRAP_ADMIN_EMAIL: ${{ secrets.APP_BOOTSTRAP_ADMIN_EMAIL }}
@@ -112,9 +113,11 @@ jobs:
           username: ${{ vars.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ vars.SSH_PORT }}
-          envs: APP_JWT_PRIVATE_KEY,APP_JWT_PUBLIC_KEY,APP_BOOTSTRAP_ADMIN_EMAIL,APP_BOOTSTRAP_ADMIN_PASSWORD
+          envs: APP_JWT_PRIVATE_KEY,APP_JWT_PUBLIC_KEY,APP_BOOTSTRAP_ADMIN_EMAIL,APP_BOOTSTRAP_ADMIN_PASSWORD,DEPLOY_BASE_DIR
           script: |
             set -e
+            # docker lives outside the default PATH in a non-interactive macOS SSH session
+            export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin:$HOME/.docker/bin"
             export PATH="/home/v7aisolution/.nvm/versions/node/v24.14.0/bin:$PATH"
 
             SCRIPTS="/tmp/v7ai-scripts"
@@ -125,7 +128,7 @@ jobs:
             IMAGE_TAG="${{ needs.build.outputs.image_tag }}"
             REPO="${{ needs.build.outputs.repo_lower }}"
 
-            DEPLOY_DIR="/home/deploy/vyapti/generated-projects/${PROJECT_SLUG}"
+            DEPLOY_DIR="${DEPLOY_BASE_DIR:-/home/deploy/vyapti/generated-projects}/${PROJECT_SLUG}"
 
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
@@ -215,5 +218,7 @@ jobs:
           port: ${{ vars.SSH_PORT }}
           script: |
             set -e
+            # docker lives outside the default PATH in a non-interactive macOS SSH session
+            export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin:$HOME/.docker/bin"
             chmod +x /tmp/v7ai-scripts/*.sh
             /tmp/v7ai-scripts/promote-green.sh "${{ inputs.project_slug }}"

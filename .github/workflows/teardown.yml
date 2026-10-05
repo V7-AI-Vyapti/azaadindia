@@ -57,13 +57,18 @@ jobs:
 
       - name: Run Teardown (app machine)
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          DEPLOY_BASE_DIR: ${{ vars.DEPLOY_BASE_DIR }}
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ vars.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ vars.SSH_PORT }}
+          envs: DEPLOY_BASE_DIR
           script: |
             set -e
+            # docker lives outside the default PATH in a non-interactive macOS SSH session
+            export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin:$HOME/.docker/bin"
             SCRIPTS="/tmp/v7ai-scripts"
             chmod +x "$SCRIPTS"/*.sh
 

@@ -48,13 +48,18 @@ jobs:
 
       - name: Start rollback image as green (app machine)
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          DEPLOY_BASE_DIR: ${{ vars.DEPLOY_BASE_DIR }}
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ vars.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ vars.SSH_PORT }}
+          envs: DEPLOY_BASE_DIR
           script: |
             set -e
+            # docker lives outside the default PATH in a non-interactive macOS SSH session
+            export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin:$HOME/.docker/bin"
             export PATH="/home/v7aisolution/.nvm/versions/node/v24.14.0/bin:$PATH"
 
             SCRIPTS="/tmp/v7ai-scripts"
@@ -139,5 +144,7 @@ jobs:
           port: ${{ vars.SSH_PORT }}
           script: |
             set -e
+            # docker lives outside the default PATH in a non-interactive macOS SSH session
+            export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin:$HOME/.docker/bin"
             chmod +x /tmp/v7ai-scripts/*.sh
             /tmp/v7ai-scripts/promote-green.sh "${{ inputs.project_slug }}"

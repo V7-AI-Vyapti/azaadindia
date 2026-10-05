@@ -20,7 +20,8 @@ WORKER_IMAGE="ghcr.io/${REPO}/${SLUG}-background-worker:${IMAGE_TAG}"
 PLATFORM_GREEN="${SLUG}-platform-green"
 WORKER_GREEN="${SLUG}-background-worker-green"
 
-DEPLOY_DIR="/home/deploy/vyapti/generated-projects/${SLUG}"
+# DEPLOY_BASE_DIR is set per GitHub environment (falls back to the Linux default)
+DEPLOY_DIR="${DEPLOY_BASE_DIR:-/home/deploy/vyapti/generated-projects}/${SLUG}"
 ENV_FILE="${DEPLOY_DIR}/.env"
 ENV_PORTS="${DEPLOY_DIR}/.env.ports"
 HEALTH_PATH="${HEALTH_PATH:-/api/v1/vulcan/health-check}"

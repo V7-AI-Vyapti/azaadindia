@@ -36,7 +36,8 @@ case "$MODE" in
     ;;
 esac
 
-DEPLOY_DIR="/home/deploy/vyapti/generated-projects/${SLUG}"
+# DEPLOY_BASE_DIR is set per GitHub environment (falls back to the Linux default)
+DEPLOY_DIR="${DEPLOY_BASE_DIR:-/home/deploy/vyapti/generated-projects}/${SLUG}"
 
 PLATFORM_BLUE="${SLUG}-platform-blue"
 WORKER_BLUE="${SLUG}-background-worker-blue"

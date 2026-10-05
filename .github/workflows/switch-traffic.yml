@@ -110,5 +110,7 @@ jobs:
           port: ${{ vars.SSH_PORT }}
           script: |
             set -e
+            # docker lives outside the default PATH in a non-interactive macOS SSH session
+            export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin:$HOME/.docker/bin"
             chmod +x /tmp/v7ai-scripts/*.sh
             /tmp/v7ai-scripts/promote-green.sh "${{ inputs.project_slug }}"

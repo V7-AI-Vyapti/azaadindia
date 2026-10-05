@@ -43,7 +43,7 @@ if [ -z "$PORT" ]; then
       -o BatchMode=yes -o ConnectTimeout=15 -o LogLevel=ERROR \
       -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
       "${SSH_USER}@${SSH_HOST}" \
-      "docker port '${PROJECT_SLUG}-platform-green' 3000 2>/dev/null | head -n1" || true)"
+      "PATH=\"\$PATH:/usr/local/bin:/opt/homebrew/bin:\$HOME/.docker/bin\"; docker port '${PROJECT_SLUG}-platform-green' 3000 2>/dev/null | head -n1" || true)"
   PORT="${MAPPED##*:}"
 fi
 
